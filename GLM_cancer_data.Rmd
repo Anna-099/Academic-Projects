@@ -1,0 +1,407 @@
+
+
+# Libraries 
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(MASS)
+library(flexmix)
+library(statmod)
+```
+
+**Question**
+
+*A report on Canadian cancer statistics estimated the number of deaths from
+various types of cancer in Canada in 2000. (data set “ccancer.rda”) . Identify
+the zeros as systematic or sampling and analyze the data with a suitable glm.
+
+#Purpose of the dataset:
+The estimated number of deaths in 2000 from cancer in three regions of Canada by cancer site and gender
+
+
+
+#Format
+A data frame with 30 observations on the following 5 variables.
+
+Count
+the estimated number of deaths by the given cancer; a numeric vector
+
+Gender
+gender; a factor with levels either \codeF (female) or codeM (male)
+
+Region
+the region; a factor with levels Ontario, Newfoundland or Quebec
+
+Site
+the cancer site; a factor with levels Lung, Colorectal, Breast, Prostate or Pancreas
+
+Population
+the estimated population of the region in 2000/20001; a numeric vector
+
+
+
+#Doesnt make sense to develop counts for observations with a structual zero, while for sampling it does, as it is possible. 
+
+#Include diagnostic. Interpret the model.*
+
+
+```{r}
+load(file='ccancer.rd')
+ccancer
+#dim(ccancer) #30 righe 5 colonne
+```
+Identify the zeros as systematic or sampling:
+
+Structural zeros: 
+Lines 9, 19, 29: Prostate Cancer F
+
+
+Sampling zeros:
+Lines 3, 13, 23: Breast Cancer M
+
+Breast cancer for a male is a sampling zero, as it is possible, but very rare, while prostate cancer for a female is a structural zero as it is impossible. 
+
+#Upon reading Agresti Categorical Data Analysis pg 398, for a poisson model, a 0 count is permissible if it is a sample zero but we delete it as it negatively impacted the modelling
+
+
+
+```{r}
+sub_ccancer<- subset(ccancer,!(Site=="Prostate"& Gender=="F"))
+
+sub_ccancer<- subset(sub_ccancer,!(Site=="Breast"& Gender=="M"))
+
+
+sub_ccancer
+xtabs(Count~Gender+Site+Region,data=sub_ccancer)
+```
+
+Comparing for a rate of the population is a fairer comparison than the raw counts as there are different populations per area
+
+
+#plot the cancer rates per thousand of population against each region
+
+```{r}
+
+sub_ccancer$Rate <- sub_ccancer$Count / sub_ccancer$Population * 1000
+
+par(mar=c(5.1, 4.1, 4.1, 8.1), xpd=TRUE)
+
+matplot(
+  xtabs(Rate ~ Region + Site, data = sub_ccancer ), #y~x
+  pch = 1:5,          #plots characters
+  lty = 1:5,          #line types
+  col = "black",
+  type = "b",         #b = both
+  lwd = 2,            #line width  
+  axes = FALSE, 
+  ylim = c(0,0.8), 
+  xlab = "Region", 
+  ylab = "Count / 1000"
+)
+axis(side = 1, at = 1:3, labels = levels(sub_ccancer$Region))
+axis(side = 2, las = 1);box()
+legend("topright", inset = c(-0.3, 0), pch = 1:5, lwd = 2, lty = 1:5, merge = FALSE, legend = c("Breast", "Colorectal", "Lung", "Pancreas", "Prostate"))
+
+```
+#Comments: 
+- In all regions the rate is highest for lung cancer to be the cause of the death, 
+- with colorectal second in each area, 
+- then breast, 
+- prostate and 
+- pancreas. 
+- Quebec looks slightly higher for most, and 
+- Ontario and Newfoundland are equal mostly except for lung, where Newfoundland is higher.
+
+- We think the effect on location to the rates is quite small, but will be attempted to model a bit later. 
+
+
+
+
+#plot the cancer rates per thousand of population against each gender
+
+```{r}
+
+par(mar=c(5.1, 4.1, 4.1, 8.1), xpd=TRUE)
+matplot(
+  xtabs(Rate ~ Gender + Site, data = sub_ccancer ), 
+  pch = 1:5, 
+  lty = 1:5, 
+  col = "black",
+  type = "b", 
+  lwd = 2, 
+  axes = FALSE, 
+  ylim = c(0,1.4), 
+  xlab = "Gender", 
+  ylab = "Count / 1000"
+)
+axis(side = 1, at = 1:2, labels = levels(sub_ccancer$Gender))
+axis(side = 2, las = 1);box()
+legend("topright", inset = c(-0.3, 0), pch = 1:5, lwd = 2, lty = 1:5, merge = FALSE, legend = c("Breast", "Colorectal", "Lung", "Pancreas", "Prostate"))
+
+
+```
+All rates refer to the count of deaths in a 1000 of the population
+
+#Comments: 
+- M lung has a higher rate than female lung, but is highest for each gender , 
+- f breast has the second highest rate amongst the rest, but male breast is 0, 
+- and prostate for m following next (f prostate is 0), 
+- m and f colorectal both trailing (m slightly higher), 
+- and pancreas has the lowest rate and approximately equal for male and female  
+
+
+# Modelling
+
+Rates can be treated as proportion, and analysed using binomial glms, but poisson glms are more convenient when the populations are large and the rates are relatively small, less than 1%.
+
+- Therefore the suggested model is 
+    
+    y ~ Pois(mu)
+    
+
+The response variable is Count, which is the number of people who have died from cancer. 
+The explanative variables to be tested are Gender, Region and Site
+
+The modelling adds the log(Population) as an offset
+
+The aim of the below model is to investigate the impact of site and gender on the effects of the count of the overall death of cancer patients from the sub_ccancer data set.
+
+```{r}
+cc.m1 <- glm(Count ~ offset(log(Population))+ Site + Gender, data = sub_ccancer, family = poisson )
+print("Anova")
+anova(cc.m1, test = "Chisq")
+print("Model Summary")
+summary(cc.m1)
+print(c("BIC", BIC(cc.m1))) 
+```
+# Comment:
+From the ANOVA test we can see that all values are significant. And explains the situation well (low residual deviance compared to null) 
+Inclusion of the BIC statistic were just used for general comparison between the models. 
+
+
+The aim of the below model is to investigate the saturated model which includes the impact of site and gender and region and their interaction on the effects of the count of the overall death of cancer patients from the sub_ccancer data set
+
+
+```{r}
+cc.m2 <- glm(Count ~ offset(log(Population))+ Site * Gender * Region, data = sub_ccancer, family = poisson )
+print("Anova")
+anova(cc.m2, test = "Chisq")
+print("Model Summary")
+summary(cc.m2)
+print(c("BIC", BIC(cc.m2)))
+
+```
+
+# Comments:
+Again the ANOVA shows that each explanatory variable and interaction is adequate
+but the model is over defined and has 0 degrees of freedom. This is the saturated model. This may over fit the phenomenom 
+There are also 2 NA values in the summary, indicating perfect correlation with another variable (combination of variables). 
+
+The most adequate model for the interpretation of the problem is the following. 
+This model is reduced in complexity by having region as a stand alone explanatory variable and the interaction of gender and site. 
+```{r}
+cc.m3<- glm(Count ~ offset(log(Population))+ Gender+Site+Region, data = sub_ccancer, family = poisson )
+
+cc.m3 <- update(cc.m3, . ~ . - GenderM:SiteProstate)
+
+anova(cc.m3, test = "Chisq")
+
+
+summary(cc.m3)
+print(c("BIC", BIC(cc.m3)))
+
+```
+
+# Comment- 
+The residual deviance is 406.74, which is ok, and all  the variables are signifcant. 
+
+
+
+
+# Looking for overdispersion
+
+Graph of predicted mean and variance of the model
+
+```{r}
+
+
+plot(log(fitted(cc.m3)),
+     log((sub_ccancer$Count-fitted(cc.m3))^2),
+     xlab=expression(hat(mu)),ylab=expression((y-hat(mu))^2),pch=20,col="blue")
+abline(0,1) ## 'varianc = mean' line
+
+```
+
+
+The overdispersion it is in reality very common in real cases The quasi poisson is a model that is often applied to fit the data when the var[yi] = φμi,  φ > 1.
+
+We apply the quasi poisson here:
+
+```{r}
+cc.m4<- glm(Count ~ offset(log(Population))+ Gender+Site+Region, data = sub_ccancer, family = quasipoisson )
+anova(cc.m4, test = "Chisq")
+summary(cc.m4)
+
+
+
+D.m4<- deviance(cc.m4); df.m4 <- df.residual( cc.m4 )
+c( Dev=D.m4, df=df.m4, P = pchisq( D.m4, df.m4, lower = FALSE) )
+
+```
+
+Comment
+The overdispersion can be seen to be 25.73
+The gender can be seen as less significant than before but still significant. 
+AIC not applicable for quasi-poisson
+#the AIC and BIC can be used to compare non-nested models based on a specific probability distribution, by using the log-likelihood and penalizing the complexity of models. The AIC penalizes the log-likelihood by the number of unknown parameters using k=2. Small values of AIC (closer to -infinite) represent better models.
+
+
+# Negative binomial model
+As the quasi poisson goodness of fit probbailigt is still close to 0
+
+
+```{r}
+
+
+cc.m5 <- glm.nb(Count ~ offset(log(Population))+ Site+Gender+Region, data = sub_ccancer )
+anova(cc.m5, test = "Chisq")
+summary(cc.m5)
+
+print(c("BIC", BIC(cc.m5)))
+
+
+
+D.m5<- deviance(cc.m5); df.m5 <- df.residual( cc.m5 )
+c( Dev=D.m5, df=df.m5, P = pchisq( D.m5, df.m5, lower = FALSE) )
+```
+
+This is the selected model, all values are significant, there is no collinearity, the residual deviance is acceptable, and most importantly the probability of this model explaining the phenomenon is significant, though negative binomial models do no normally use pearson squared, there is indication that it has been used in the past. But for more proof ,both AIC and BIC can be seen to be the lowest for this model (except for the saturated model)
+
+
+#DIAGNOSTIC OF THE MODEL
+
+We have chosen the negative binomial model cc.m5 for reasons above
+
+
+#Assumptions:
+The following model assumptions should always be checked after fitting a model to identify potential problems, and this information used to improve the model where possible:
+The assumptions made when fitting GLMSs concern:
+- Lack of outliers: all responses were generated from the same
+process, so that the same model is appropriate for all the observations.
+- Link function: the correct link function g() is used.
+- Linearity: all important explanatory variables are included, and each explanatory variable is included in the linear predictor on the correct scale.
+- Variance function: the correct variance function V(μ) is used.
+- Dispersion parameter: the dispersion parameter φ is constant.
+- Independence: the responses yi are independent of each other.
+- Distribution: the responses yi come from the specified EDM.
+
+
+#-- Response Residuals are Insufficient for GLMs
+#-- Pearson Residuals
+#-- Deviance Residuals
+#-- Quantile Residuals
+#-- Leverage Standardized Residuals for GLMs pag.306
+Quantile. deviance and Pearson residuals all have exact normal distributions when the responses come from a normal distribution.
+
+
+# DIAGNOSTIC:
+
+Dispersion of residuals
+
+```{r}
+
+# Pearson Residuals
+#ei=yi-mihat/sqrt Var(yi)
+#Pearson residuals fluctuate around 0, following approximately a normal distribution when mi is large
+plot(density(resid(cc.m5, type = "pearson")))
+points(density(rstandard(cc.m5, type='pearson')), col = "red")
+
+#Pearson Residuals
+rpearson = resid(cc.m5, type = "pearson")
+rpearson_standard = rstandard(cc.m5,  type = "pearson")
+
+#Deviance Residuals are alternative easures of lack of fit and are components of the deviance
+
+plot(density(resid(cc.m5, type = "deviance")))
+points(density(rstandard(cc.m5, type = "deviance")), col = "red")
+
+#Deviance Residuals
+rdeviance = resid(cc.m5, type = "deviance")
+rdeviance_standard = rstandard(cc.m5, type = "deviance")
+
+
+#Quantile Residuals are the residuals of choice for GLMs in large dispersion situations when the deviance and the Pearson residuals can be grossly non normal
+rquantile = qresid(cc.m5)
+plot(density(rquantile))
+
+#Studentized Residuals can be helpful for identifying outliers
+rstudentized = rstandard(cc.m5)
+plot(density(rstudentized))
+
+```
+# Comment 
+- quartile is good for negative binomial 
+- We know that if the quantile residuals distribution follows a normal distribution, or approximately normal, the random component has been adequately chosen. 
+
+
+We can see that in the graphs above for all residuals, the distributions are approximately normal.
+
+
+Comparing Residuals for checking outliers:
+```{r}
+rs <- cbind(rdeviance, rdeviance_standard, rquantile, rstudentized)
+head(rs)
+apply(abs(rs), 2, max) #the maximum absolute for each residual
+```
+Quantile, Studentized and Standardized residuals are similar. No large residuals exist. 
+
+
+General diagnostic Plots:
+```{r}
+
+#qqplot
+qqnorm(rquantile, las = 1); qqline(rquantile)
+
+#rquantile
+plot( rquantile ~ fitted(cc.m5), las=1)
+abline(0,0, col = "red")
+
+#cooks plot
+plot( cooks.distance(cc.m5), type="h", las=1 , xlab = "Observation" )
+
+infl <-which.max(cooks.distance(cc.m5))
+print(c("max cook observation", data.frame(infl), "max value",max(cooks.distance(cc.m5)) ))
+
+
+```
+
+# Comment:
+- QQ plot can be used to identify outliers, we can see from the graph there are no outlines according to the plot. Can also show the choice of the random component is appropriate
+-The second plot showing the r-quantile and the fitted values shows doesn't show a strong trend, which means the model fits quite well. 
+- The cooks graph you can see the cooks distance max value is 0.414, which is less than 1 and thus not significant. 
+
+# Systematic component 
+
+Plots to check the systematic component:
+To examine the link function, an informal check is to plot the working responses against η^i.
+If the link function is appropriate, the plot should be roughly linear.
+
+```{r}
+
+eta<-cc.m5$linear.predictor
+#eta
+
+z<-resid(cc.m5,type="working") + eta
+
+plot(z~eta, las=1,xlab="Linear predictor,eta",
+     ylab="Working residuals,z")
+#z
+
+abline(0,1,col="blue")
+
+```
+
+
+
+
