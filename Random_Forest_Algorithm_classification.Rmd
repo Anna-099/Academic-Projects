@@ -1,0 +1,597 @@
+
+Assignment:
+Implement in R the random forests algorithm, following the pseudo-code from "The elements of statistical learning" by Hastie, Tibshirani, Friedman.
+
+
+Libraries:
+#expressions:
+sets a limit on the number of nested expressions that will be evaluated. Valid values are 25...500000 with default 5000. 
+
+
+```{r libraries and options}
+library(ISLR2)
+library(stringr)
+options(expressions = 50000)
+
+```
+
+Functions:
+impur function()
+This function calculates the impurity of a given y, based on the problem input.
+If problem == classification, it implements the Gini impurity method, otherwise, if problem == "regression", it implements the between variance.
+
+```{r impur function}
+
+impur <- function(y, problem){
+  if (problem == "classification"){
+  c_y <- summary(y) 
+  
+  c_yy <- rep(0, dim(c_y)[1])
+  for(i in 1:dim(c_y)[1]){
+    c_yy[i] <- as.numeric(str_split_1(c_y[i],":")[2])
+  }
+  
+  prom <- 0
+  
+  for (i in c_yy){
+    prob_i <- (i/dim(y)[1])^2
+    prom <- prom + prob_i*i
+  }
+  return (prom)}
+  else{
+    return (mean(as.numeric(unlist(y)))^2*dim(y)[1]) 
+  }
+}
+```
+
+best_split_function():
+This function finds the best split point for decision tree building. 
+The function starts with a for loop, which iterates through the columns of the input data-set, "m_var". m_var are the randomly selected m variables from p total variables 
+Then the function checks if the variable is categorical and numerical variables, predefined by the user. 
+If categorical: 
+- a new variable "possible_split_var" is created. This variable consists of all the possible levels of the current categorical variable. 
+- Consequently, with a nested for loop, it iterates through each "possible_split_var", and for each level it creates a new variable "split", representing the current level.
+- Then, a logical vector "split_eval" is created, which returns TRUE, when the value in the column is equal to the current split value/class, and false otherwise. 
+- If "split_eval" is TRUE, the corresponding target variables of the observations are stored in "y_left" and the corresponding input data-set are stored in "train_left". 
+- Otherwise, if "split_eval" is false, the corresponding target variables are stored in "y_right" and the corresponding input data_set are stored in "train_right".
+
+In the end, the dimension of both y_left and y_right is checked and if, and only if, they are both greater or equal to min_leaf specified, the function appends the calculated "impurs", "split_var", "split_ploint", "y_lefts", "train_lefts", "y_rights", "train_rights".
+
+On the other hand, if the column is in the list of the numerical variables:
+- and the levels are greater than 2 (ensuring there is a midway point), 
+- the variable 'ord' is created, in which are stored the levels of the numerical variable in ascending order 
+- and the variable 'midway', in which there are the midpoints of each consecutive level in "ord". 
+- The function then, follows the same path previously explained for the categorical case, with the exception that now 'split' is the current midpoint and 'split_eval' is a logical vector, that is TRUE if the value in the column is less than the current midpoint and FALSE otherwise. 
+
+There is also assurance that there is atleast one impur value given, such that there is the requirement that at least one split has to have nodes greater or equal to the length of min_leaf
+it reiterates through the best split fn searching, and resetting the m_var choices
+Please note - there is the possibility of an infinite loop here if these requirements arent satisfied, at which point an interuption is recommended and the fn is restarted. 
+
+
+
+
+``` {r best_split function}
+best_split = function(m_var, cat_var, num_var, train,y_train, min_leaf){
+  
+  impurs <- list()
+  split_var <- list()
+  split_point <- list()
+  y_lefts <- list()
+  train_lefts <- list()
+  y_rights <- list()
+  train_rights <- list()
+  for (i in m_var){
+    
+    if(colnames(train)[i] %in% cat_var ){
+      possible_split_var <-  length(levels(train[,i]))
+      for(j in 1:possible_split_var){
+        split <- levels(train[,i])[j]
+        
+        split_eval <- ifelse(train[,i] == split, TRUE, FALSE)  
+        y_left <- data.frame(y_train[split_eval,])
+        train_left <-  train[split_eval,]
+        colnames(y_left)<- "y_train"
+        train_left$y_train <- y_left
+        
+        
+        split_eval <- ifelse(train[,i] == split, FALSE, TRUE)
+        y_right <- data.frame(y_train[split_eval,])
+        train_right <-  train[split_eval,]
+        colnames(y_right)<- "y_train"
+        train_right$y_train <- y_right
+        
+        
+        if(isTRUE(dim(y_left)[1] >= min_leaf && dim(y_right)[1] >= min_leaf)){
+ 
+        impurs <- append(impurs, impur(y_left, problem) + impur(y_right, problem)) 
+        split_var <- append(split_var, colnames(train)[i])
+        split_point <- append(split_point, split)
+        y_lefts <- append(y_lefts, y_left)
+        train_lefts <- append(train_lefts, list(train_left))
+        y_rights <- append(y_rights, y_right)
+        train_rights <- append(train_rights, list(train_right))
+        
+        }
+        else{next}
+      }
+    }
+    
+    if(colnames(train)[i] %in% num_var){
+      if( length(levels(ordered(train[,i] )))< 2){next} 
+      
+      ord <- levels(ordered(train[,i]))
+      midway <- rep(0,length(ord)-1)
+      for(a in 1:length(ord)-1){
+        midway[a] <- (as.numeric(ord[a]) + as.numeric(ord[a+1]))/2}
+      for(j in 1:length(midway)){
+        split <- midway[j]
+        split_eval <- ifelse(train[,i] < split, TRUE, FALSE)  
+        y_left <- data.frame(y_train[split_eval,])
+        train_left <-  train[split_eval,]
+        colnames(y_left)<- "y_train"
+        train_left$y_train <- y_left
+        
+        
+        split_eval <- ifelse(train[,i] < split, FALSE, TRUE)
+        y_right <- data.frame(y_train[split_eval,])
+        train_right <-  train[split_eval,]
+        colnames(y_right)<- "y_train"
+        train_right$y_train <- y_right
+        
+        if(isTRUE(dim(y_left)[1] >= min_leaf && dim(y_right)[1] >= min_leaf)){
+     
+        impurs <- append(impurs, impur(y_left, problem) + impur(y_right, problem))
+        split_var <- append(split_var, colnames(train)[i])
+        split_point <- append(split_point, split)
+        y_lefts <- append(y_lefts, y_left)
+        train_lefts <- append(train_lefts, list(train_left))
+        y_rights <- append(y_rights, y_right)
+        train_rights <- append(train_rights, list(train_right))
+        }
+        else{next}
+      }
+    }
+  }
+  
+
+  while(length(impurs)== 0){
+    m_var <- sample(1:dim(train)[2],length(m_var))
+    split_var<- best_split(m_var, cat_var, num_var, train,y_train, min_leaf)
+  }
+
+  idx <- match(max(unlist(impurs)), impurs)
+  
+  lt <- train_lefts[idx]
+
+  rt <- train_rights[idx]
+
+  return ( list(split_var[idx], split_point[idx], lt, rt))
+}
+
+```
+
+grow_tree function()
+The function grows a decision tree.
+
+If the number of samples in y_train is less than "n_min", the function returns the final tree; "n_min" is the minimum number of samples required to split an internal node. 
+
+There is also a secondary requirement, that the node cannot be pure, as it is unnecessary to further split a pure node. A pure node being filled with only one class (classification problems)
+
+If it is greater and not pure, the function determines the number of variables for splitting. 
+
+If the problem is "classification", m is set to the square root of p, otherwise m is set to p/3. 
+
+Then, m, randomly chosen from p, is stored in m_var. 
+
+The previously defined function "best_split" is used for determining the best split point and variable. 
+
+Then, the grow_tree function splits the data into left and right subsets and assigns the majority class/mean value to the left and right child nodes respectively; final_tree, which is initialized as an empty list, is updated, storing the final decision tree. 
+
+``` {r grow_tree function}
+grow_tree <- function (problem, p, train, y_train, cat_var, num_var, n_min,min_leaf,  final_tree = list(), node_name_left = 2, node_name_right = 3){
+  
+  #for evaluating node purity
+  c_y <- summary(y_train) 
+  c_yy <- rep(0, dim(c_y)[1])
+  for(i in 1:dim(c_y)[1]){
+    c_yy[i] <- as.numeric(str_split_1(c_y[i],":")[2])
+  }
+  
+  node_purity <- FALSE
+  for(i in c_yy){
+    if(i == dim(y_train)[1]){node_purity<- TRUE}
+  }
+  
+  if (dim(y_train)[1] < n_min|| node_purity )  { 
+    return(final_tree)
+  }else{
+    
+    if(problem == "classification"){
+      m = round(sqrt(p), 0)} else {
+        m = round(p/3,0)}
+    
+    m_var <- sample(1:p,m)
+    
+    split_var<- best_split(m_var, cat_var, num_var, train,y_train, min_leaf)
+    
+    split_point <- unlist(split_var)[2]
+
+    left_train <- data.frame(split_var[3])
+    
+    right_train <- data.frame(split_var[4])
+    
+    split_var <- unlist(split_var)[1]
+
+    
+    y_train_left <- left_train["y_train"]
+    #left_train = left_train[,!(names(left_train) %in% colnames(y_train_left))]
+
+    y_train_right <- right_train["y_train"]
+    #right_train = right_train[,!(names(right_train) %in% colnames(y_train_right))]
+
+
+    
+    
+    if (problem == "classification"){
+      summ <- summary(y_train_left)
+      class_y<- rep(0, dim(summ)[1])
+      summ_y <- rep(0, dim(summ)[1])
+      for(i in 1:dim(summ)[1]){
+        summ_y[i] <- as.numeric(str_split_1(summ[i],":")[2])
+        class_y[i] <- as.numeric(str_split_1(summ[i],":")[1])}
+      max_idx <- match(max(summ_y), summ_y) 
+      y_class_left <- class_y[max_idx]}
+    
+    else{
+      y_class_left = mean(as.numeric(unlist(y_train_left)))
+    }
+      
+    if (problem == "classification"){
+      summ <- summary(y_train_right)
+      class_y<- rep(0, dim(summ)[1])
+      summ_y <- rep(0, dim(summ)[1])
+      for(i in 1:dim(summ)[1]){
+        summ_y[i] <- as.numeric(str_split_1(summ[i],":")[2])
+        class_y[i] <- as.numeric(str_split_1(summ[i],":")[1])}
+      max_idx <- match(max(summ_y), summ_y) 
+      y_class_right <- class_y[max_idx]}
+    else{
+      y_class_right = mean(as.numeric(unlist(y_train_right)))
+    }
+      
+
+    final_tree <- append(final_tree, list(list(split_var, split_point, left_train, y_class_left, right_train, y_class_right, node_name_left, node_name_right)))
+    
+    
+    final_tree <- grow_tree(problem, p, left_train, y_train_left, cat_var, num_var, n_min,min_leaf, final_tree,  node_name_left = node_name_left * 2, node_name_right = node_name_left * 2+1)
+    
+    
+    final_tree <- grow_tree(problem, p, right_train, y_train_right, cat_var, num_var, n_min, min_leaf, final_tree, node_name_left = node_name_right * 2, node_name_right = node_name_right * 2+1)
+  }
+  
+  return(final_tree)
+  
+}
+```
+
+predic function()
+This function is designed to make predictions.
+An empty list for storing the predicted values is created, called "pred_response". 
+The for loop iterates through each row in the 'oob_x' dataset (for values to be predicted) and a new variable called "values" is created for that one observation.
+Then, a while loop is initialized and it will continue until it reaches a leaf node of the previously created tree. 
+The while loop checks if the current node split is a categorical or a numeric variable.
+If it is a categorical variable, it enters another if statement checking if the value of the categorical variable used for splitting in the "values" observation matches or not the split value (class) saved in the trees list. Consequently, the function sets respectively the current node to the left or to the right child. 
+On the other hand, if the current node is a numeric variable, the function checks if the value of the numeric variable used for splitting in the "values" observation is less than or not than the value of the split point saved in the trees at that level, and again, the function sets respectively the current node to the left or to the right child.
+The function than takes advantage of the naming style of the trees, to search for a match of 2x current node, and if uncessful, terminates and returns the class / mean value - of the final class. 
+
+
+```{r predic function}
+predic <- function(trees, oob_x, problem){
+  
+    pred_response <- list()
+    for (i in 1:dim(oob_x)[1]){
+      values <- oob_x[i,]
+      j=1
+      a=1
+      l = 1
+      while (a < dim(trees)[1]){       
+        j = l
+        if ( trees[j,1] %in% cat_var){
+          if(trees[j,2] == values[trees[j,1]])
+          { k= 5; current_node <- as.numeric(trees[j,k])}
+          else
+          {k = 6; current_node <- as.numeric(trees[j,k])}
+        }else{
+          if(trees[j,2] < values[trees[j,1]]){
+            k = 5; current_node <- as.numeric(trees[j,k])}
+          else
+          {k = 6; current_node <- as.numeric(trees[j,k])} }
+        
+        new_node <- current_node * 2
+        l  <- match(new_node, trees[,5])
+        if (is.na(l)){break}
+        
+        a =a+1}
+      
+      if (k == 5 ){y_train_pred <-trees[j,7]
+      }else{y_train_pred <-  trees[j,8]}
+      
+      pred_response <- append(pred_response, y_train_pred)
+    }
+  return(pred_response)
+}
+
+```
+
+random forest function()
+This function implement the random forest, using the decision tree model previously defined.
+The function starts by defining y as the response variable of the data_frame. Then it initializes "tree_list" for storing the trees, grown in the same random forest function.
+There is a for loop of B iterations, which will randomly select a subset of the data to be used as the training set and the rest will be used as the OOB set. Then, the function grow_tree, which returns a decision tree, is called. From the last function, various elements are extracted and then stored in the "trees" data-frame. The number of observations in the left and right children of each node in the tree are calculated and two new columns in the "trees" data-frame called "left_node" and "right_node", are created. These columns indicate if the corresponding node is a leaf node or a parent node. In the end, the "predic" function, previously defined, is called on the OOB set, returning predicted response values for the OOB data. The row names of the OOB data and the predicted response values are stored in the data-frame "a_e". The function appends the "trees" and "a_e" as a list to the "tree_list". The function in the end returns the "tree_list". 
+
+```{r random forest function}
+randomforest <- function(df,response, num_var, cat_var, B = 10, problem = c("classification", "regression"), n_min = 5, min_leaf = 5) {
+  
+  y <- df[response]                        
+  df = df[,!(names(df) %in% response)]
+  
+  n <- dim(df)[1] 
+  p <- dim(df)[2] 
+  
+  tree_list <- list()
+  
+  for(b in 1:B){
+  print(c("Tree Creation Iteration", b))    
+    
+    
+    z_star <- sample(1:n, n, replace = TRUE)  
+    
+    train <- df[z_star,]
+    y_train <- data.frame(y[z_star,1])
+    
+    oob_x <- df[-z_star,]
+    oob_y <- data.frame(y[-z_star,1])
+    
+    
+    
+    t1 <- grow_tree(problem, p, train, y_train, cat_var, num_var, n_min, min_leaf)
+
+    
+    split_var <- unlist(lapply(t1, `[[`, 1))
+    split_point <- unlist(lapply(t1, `[[`, 2))
+    left_trains <- lapply(t1, `[[`, 3)
+    y_class_lefts <-unlist(lapply(t1, `[[`, 4))
+    right_trains <- lapply(t1, `[[`, 5)
+    y_class_rights <- unlist(lapply(t1, `[[`, 6))
+    node_name_left <- unlist(lapply(t1, `[[`, 7))
+    node_name_right <- unlist(lapply(t1, `[[`, 8))
+    
+    lengths_l <- list()
+    lengths_r <- list()
+    for (i in 1:length(left_trains)){
+      lengths_l <- append(lengths_l, dim(left_trains[[i]])[1])
+      lengths_r <- append(lengths_r, dim(right_trains[[i]])[1])}
+    
+    trees <- cbind(split_var, split_point, unlist(lengths_l), unlist(lengths_r), node_name_left, node_name_right, y_class_lefts, y_class_rights)
+    
+    colnames(trees) <- c("split_var", "split_point", "obs_left", "obs_right", "node_name_left","node_name_right", "y_class_lefts", "y_class_rights")
+    
+    trees <- as.data.frame(trees)
+    
+    trees$left_node <- ifelse(as.numeric(trees$obs_left )< n_min, "leaf", "parent")
+    trees$right_node<- ifelse(as.numeric(trees$obs_right )< n_min, "leaf", "parent")
+    
+
+    
+    pred_response <- predic(trees, oob_x, problem) 
+    
+
+    
+    a_e <- cbind(row.names(oob_x), pred_response)
+    tree_list <- append(tree_list, list(list(trees, a_e)))
+  }
+  return( list(tree_list))
+}
+```
+
+final_pred function()
+This function makes final predictions for new input data using an ensemble of decision trees previously trained.
+The function starts by creating an empty list "pred_response", used to store the prediction made by each decision tree.
+In the for loop, from 1 to B, the first decision tree from the "tree_list" is selected and stored in the variable "t1". Each wanted prediction will go through each tree, and the final predictions will be grouped in this method for evaluation. 
+On this, the function "predic" is called and the predictions obtained are stored in the previously defined empty list.
+So, the function calls the function "predic" for each decision tree in the ensemble, passing the tree, new input data, and problem as inputs and appending the predicted responses to "pred_response". 
+The consequent for loop iterates over the rows of the "df" input. In each iteration, is created "votes", a vector of length "B" initialized to 0. There is a nested for, which iterates over this vector, and in each iteration, the prediction made by the corresponding decision tree is stored in the "votes" vector. 
+More clearly, for each row of the new input data, the function takes "a vote" from each decision tree in the ensemble, if the problem is classification the function finds the most frequent vote, otherwise it takes the average of the predictions, It then returns the final predictions as the output of the function. If the problem is classification it returns the vote -1, otherwise it returns the vote. It return -1 because the classification in this case is binary 0-1, the output given is 1-2, minusing one to make it 0-1 again
+
+
+```{r final_pred function}
+
+final_pred <- function(tree_list, df, problem, B){
+  pred_response <- list()
+  
+  for ( trees in 1:B){
+    t1 <- tree_list[[1]][[trees]][[1]]
+    pred_response <- append(pred_response, list(predic(data.frame(t1), df, problem))) 
+  }
+  
+  
+  vote <- rep(0, dim(df)[1])
+  for (j in 1:dim(df)[1]){
+    votes <- rep(0, B)     
+    for (i in 1:B){votes[i] <- pred_response[[i]][[j]]}
+    
+    if (problem == "classification"){
+    idx <- match(max(data.frame(table(votes))$Freq), data.frame(table(votes))$Freq)
+    vote[j] <-  data.frame(table(votes))$votes[idx]
+    }else{vote[j] <- mean(as.numeric(unlist(votes)))}
+    }
+  if (problem =="classification"){return(vote -1)
+  }else{ return(vote)}
+}
+
+```
+
+oobfn function()
+This function is an implementation of the Out of Bag error estimate for random forests. 
+The code loops through all the trees in the forest, and for each tree, it finds the observations that were not used in the construction of that tree (OOB observations) and their corresponding predicted responses. Then it computes the final predicted response for each observation by taking the majority vote for classification or mean for regression among all the trees that have an OOB observation for that observation. It then compares the final predicted response with actual response to calculate the misclassification rate or mean squared error depending on whether it is a classification or regression problem. Finally, it prints out the oob_misclass_rate or oob_mse as the case may be. 
+
+
+
+```{r oobfn function}
+oobfn <- function (B, tree_list, df, response, problem){
+  
+  oob <- list()
+  for (i in 1:B){oob <- append(oob, list(data.frame(tree_list[[1]][[i]][[2]])))}
+  
+  obs <- list()
+  resp <- list()
+  for (i in 1:B){
+    obs <- append(obs,unlist(oob[[i]]$V1))
+    resp <- append(resp,unlist(oob[[i]]$pred_response))
+  }
+  final <- rep(0, dim(df)[1])
+  for ( i in 1:dim(df)[1]){
+    votes <- list()
+    
+    for(j in 1:length(obs)){
+      if(i ==as.numeric(unlist(obs)[j]) ){
+        votes <- append(votes, resp[j])
+      }
+    }
+    if(length(votes)>0){
+      if (problem == "classification"){
+        idx <- match(max(data.frame(table(as.factor(unlist(votes))))$Freq), data.frame(table(as.factor(unlist(votes))))$Freq)
+        final[i] <-  data.frame(table(as.factor(unlist(votes))))$Var1[idx]} # this gives me a response 1, 2 - instead of class names 0,1
+      
+      else{final[i] <- mean(as.numeric(unlist(votes)))}
+    }
+  }
+  final
+  if (problem == "classification"){
+    e_a <- cbind.data.frame(final-1, df[response])
+    colnames(e_a) <- c("oob", "actual")
+    not_used <- 0 
+    missclass <- 0 
+    for(i in 1:dim(e_a)[1]){
+      if (e_a[i,1] == -1){
+        not_used <- not_used + 1
+      }
+      if (e_a[i,1]!=e_a[i,2]){
+        missclass <- missclass +1
+      }
+    } 
+    print(c("oob_missclass_rate:", missclass/(dim(e_a)[1] - not_used)))
+    
+    
+  }else{
+    e_a <- cbind.data.frame(final, df[response])
+    colnames(e_a) <- c("oob", "actual")
+    
+    mse <- 0
+    c <- 0 
+    for(i in 1:dim(e_a)[1]){
+      if (e_a[i,1] != 0){
+        mse <- mse + (e_a[i,1] - e_a[i,2])^2
+        c <- c + 1 
+      }
+    }
+    print(c("oob_mse:", mse / c ))
+  }
+  }
+
+```
+
+error function()
+This function wants to calculate the error rate.
+The function takes in three arguments, "vote" which is the predicted output, "y" which is the actual output, and "problem", which specifies whether the task is a classification or a regression problem. If the problem is a classification problem, the function calculates the misclassification rate and prints it out. If the problem is a regression problem, the function calculates the MSE and prints it out.
+
+```{r error function}
+error<- function(vote, y, problem){
+  e_a <- cbind(vote, y)
+  
+  if (problem == "classification"){
+    missclass <- sum(ifelse(e_a[,1]==e_a[,2], 0,1))
+    print(c("missclass_rate", missclass/dim(y)[1])) 
+  }else{
+    mse <- 0 
+    c <- 0 
+    for(i in 1:dim(e_a)[1]){
+      if (e_a[i,1] != 0){
+        mse <- mse + (e_a[i,1] - e_a[i,2])^2
+        c <- c + 1 
+      }
+    }
+    print(c("mse:", mse / c ))
+    
+  }
+} 
+```
+
+Dataset:
+
+We will be using the Carseats dataset with regression response as Price, and a made variable "High" (Sales > 8) for classification.
+
+Keeping n_min and leaf_min far away to avoid while loops running indefinitely. 
+
+```{r Classification}
+data(Carseats)
+High <- factor(ifelse(Carseats$Sales > 8, 1,0)) 
+Carseats$High = High
+Carseats <- subset(Carseats, select = -Sales)
+num_var = c("CompPrice", "Income", "Advertising", "Population", "Price", "Age", "Education")
+cat_var = c("ShelveLoc", "Urban", "US")
+
+response = "High"
+df <- Carseats
+B <- 10
+n_min <- 15
+min_leaf <- 2
+problem = "classification"
+
+#Returning an ensemble of trees in a list, show split_var, split_point, number of obs_left and right, the class (or mean), the status of the left node and right node as parent / child
+tree_list <- randomforest(df,response, num_var, cat_var, B = B, problem = problem, n_min = n_min, min_leaf = min_leaf)
+
+#For testing the oobs error
+oobfn(B, tree_list, df, response, problem)
+
+
+#For testing new observations on the ensemble of trees. 
+y <- subset(df, select = High) 
+df <- subset(df, select = -High)
+vote <- final_pred(tree_list, df, problem, B)
+error(vote, y, problem )
+
+
+```
+
+Regression problem
+Response variable "Price"
+
+
+```{r Regression}
+
+data(Carseats)
+num_var = c("CompPrice", "Income", "Advertising", "Population", "Price", "Age", "Education", "Sales")
+cat_var = c("ShelveLoc", "Urban", "US")
+
+response = "Price"
+df <- Carseats
+B <- 10
+n_min <- 15
+min_leaf <- 2
+problem = "regression"
+
+#Returning an ensemble of trees in a list, show split_var, split_point, number of obs_left and right, the class (or mean), the status of the left node and right node as parent / child
+tree_list <- randomforest(df,response, num_var, cat_var, B = B, problem = problem, n_min = n_min, min_leaf = min_leaf)
+
+#returns the oobs error 
+oobfn(B, tree_list, df, response, problem)
+
+
+#For testing observations on the ensemble of trees
+y <- subset(df, select = Price) 
+df <- subset(df, select = -Price)
+vote <- final_pred(tree_list, df, problem, B)
+error(vote, y, problem )
+
+```
+
