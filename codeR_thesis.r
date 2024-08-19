@@ -1,3 +1,10 @@
+#The following code is the application of Reduced Rank Regression model in the context of
+#multiple predictors and multiple mixed response variables. The data analyzed are related to the 
+#environment, resulting from a questionnaire. The objective of the analysis is to understand whether,
+#and in what measure, is present a relationship between people "attitudes" and "behaviours" towards 
+#the environment.
+
+
 source("C:/Users/annag/Desktop/Papers/gmr4.R")
 
 #load data and import the libraries

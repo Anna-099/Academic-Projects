@@ -1,5 +1,5 @@
 # GOAL: DETECT THE PROMOTIONAL WEEKS **OF THE STORES** FOR EACH CUSTOMER-PRODUCT
-# PAIR. 
+
 
 library(tidyverse)
 library(aweek)

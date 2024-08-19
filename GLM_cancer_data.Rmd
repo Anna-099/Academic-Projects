@@ -1,4 +1,6 @@
-
+The objective of the project is to explore the cancer dataset and detect the relationships
+between variables that can have an influence on the count of the overall death of cancer 
+patients (ex: Gender, Region...).
 
 # Libraries 
 
@@ -10,16 +12,12 @@ library(flexmix)
 library(statmod)
 ```
 
-**Question**
-
-*A report on Canadian cancer statistics estimated the number of deaths from
+A report on Canadian cancer statistics estimated the number of deaths from
 various types of cancer in Canada in 2000. (data set “ccancer.rda”) . Identify
 the zeros as systematic or sampling and analyze the data with a suitable glm.
 
-#Purpose of the dataset:
-The estimated number of deaths in 2000 from cancer in three regions of Canada by cancer site and gender
-
-
+#The dataset:
+The estimated number of deaths in 2000 from cancer in three regions of Canada by cancer site and gender.
 
 #Format
 A data frame with 30 observations on the following 5 variables.
@@ -153,7 +151,8 @@ All rates refer to the count of deaths in a 1000 of the population
 
 # Modelling
 
-Rates can be treated as proportion, and analysed using binomial glms, but poisson glms are more convenient when the populations are large and the rates are relatively small, less than 1%.
+Rates can be treated as proportion, and analysed using binomial glms, but poisson glms are more 
+convenient when the populations are large and the rates are relatively small, less than 1%.
 
 - Therefore the suggested model is 
     
@@ -161,11 +160,12 @@ Rates can be treated as proportion, and analysed using binomial glms, but poisso
     
 
 The response variable is Count, which is the number of people who have died from cancer. 
-The explanative variables to be tested are Gender, Region and Site
+The explanative variables to be tested are Gender, Region and Site.
 
 The modelling adds the log(Population) as an offset
 
-The aim of the below model is to investigate the impact of site and gender on the effects of the count of the overall death of cancer patients from the sub_ccancer data set.
+The aim of the below model is to investigate the impact of site and gender on the effects of the 
+count of the overall death of cancer patients from the sub_ccancer data set.
 
 ```{r}
 cc.m1 <- glm(Count ~ offset(log(Population))+ Site + Gender, data = sub_ccancer, family = poisson )
@@ -176,11 +176,14 @@ summary(cc.m1)
 print(c("BIC", BIC(cc.m1))) 
 ```
 # Comment:
-From the ANOVA test we can see that all values are significant. And explains the situation well (low residual deviance compared to null) 
-Inclusion of the BIC statistic were just used for general comparison between the models. 
+From the ANOVA test we can see that all values are significant. And explains the situation well (low
+ residual deviance compared to null) 
+The BIC statistic was just used for general comparison between the models. 
 
 
-The aim of the below model is to investigate the saturated model which includes the impact of site and gender and region and their interaction on the effects of the count of the overall death of cancer patients from the sub_ccancer data set
+The aim of the below model is to investigate the saturated model which includes the impact of site 
+and gender and region and their interaction on the effects of the count of the overall death of 
+cancer patients from the sub_ccancer data set.
 
 
 ```{r}
@@ -195,11 +198,15 @@ print(c("BIC", BIC(cc.m2)))
 
 # Comments:
 Again the ANOVA shows that each explanatory variable and interaction is adequate
-but the model is over defined and has 0 degrees of freedom. This is the saturated model. This may over fit the phenomenom 
-There are also 2 NA values in the summary, indicating perfect correlation with another variable (combination of variables). 
+but the model is over defined and has 0 degrees of freedom. This is the saturated model. This may 
+over fit the phenomenom 
+There are also 2 NA values in the summary, indicating perfect correlation with another variable 
+(combination of variables). 
 
 The most adequate model for the interpretation of the problem is the following. 
-This model is reduced in complexity by having region as a stand alone explanatory variable and the interaction of gender and site. 
+This model is reduced in complexity by having region as a stand alone explanatory variable and 
+the interaction of gender and site. 
+
 ```{r}
 cc.m3<- glm(Count ~ offset(log(Population))+ Gender+Site+Region, data = sub_ccancer, family = poisson )
 
@@ -234,7 +241,8 @@ abline(0,1) ## 'varianc = mean' line
 ```
 
 
-The overdispersion it is in reality very common in real cases The quasi poisson is a model that is often applied to fit the data when the var[yi] = φμi,  φ > 1.
+The overdispersion it is in reality very common in real cases.
+The quasi poisson is a model that is often applied to fit the data when the var[yi] = φμi,  φ > 1.
 
 We apply the quasi poisson here:
 
@@ -254,11 +262,14 @@ Comment
 The overdispersion can be seen to be 25.73
 The gender can be seen as less significant than before but still significant. 
 AIC not applicable for quasi-poisson
-#the AIC and BIC can be used to compare non-nested models based on a specific probability distribution, by using the log-likelihood and penalizing the complexity of models. The AIC penalizes the log-likelihood by the number of unknown parameters using k=2. Small values of AIC (closer to -infinite) represent better models.
+#the AIC and BIC can be used to compare non-nested models based on a specific probability 
+distribution, by using the log-likelihood and penalizing the complexity of models. 
+The AIC penalizes the log-likelihood by the number of unknown parameters using k=2. 
+Small values of AIC (closer to -infinite) represent better models.
 
 
 # Negative binomial model
-As the quasi poisson goodness of fit probbailigt is still close to 0
+As the quasi poisson goodness of fit probability is still close to 0
 
 
 ```{r}
@@ -276,7 +287,11 @@ D.m5<- deviance(cc.m5); df.m5 <- df.residual( cc.m5 )
 c( Dev=D.m5, df=df.m5, P = pchisq( D.m5, df.m5, lower = FALSE) )
 ```
 
-This is the selected model, all values are significant, there is no collinearity, the residual deviance is acceptable, and most importantly the probability of this model explaining the phenomenon is significant, though negative binomial models do no normally use pearson squared, there is indication that it has been used in the past. But for more proof ,both AIC and BIC can be seen to be the lowest for this model (except for the saturated model)
+This is the selected model, all values are significant, there is no collinearity, the residual 
+deviance is acceptable, and most importantly the probability of this model explaining the 
+phenomenon is significant, though negative binomial models do no normally use pearson squared, 
+there is indication that it has been used in the past. But for more proof ,both AIC and BIC can 
+be seen to be the lowest for this model (except for the saturated model).
 
 
 #DIAGNOSTIC OF THE MODEL
