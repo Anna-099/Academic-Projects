@@ -1,4 +1,5 @@
 📊 Data Science Projects
+
 This repository showcases a collection of data science projects that I completed during my studies using both R and Python. 
 Each project explores a unique dataset, applying techniques like regression, classification, forecasting, and clustering.
 
