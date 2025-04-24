@@ -8,13 +8,14 @@ File: Anomaly_Detection_Insurance_Data.ipynb
 Detects outliers in insurance claims data using unsupervised learning techniques.
 Techniques: Isolation Forest, Z-score analysis
 Language: Python (Jupyter Notebook)
-Libraries: scikit-learn, pandas, matplotlib
+Libraries: numpy, seaborn, pandas, matplotlib
 
 🛍️ 2. FATER Project – Promotional Campaign Detection
 File: FATER_project.R
 Identifies promotional weeks for each customer-product pair across 30,000+ customers using machine learning.
 Techniques: PCA, K-Means Clustering, SVM
 Language: R
+Libraries: tidyverse, TSA, plotly, anomalize
 Goal: Cluster customers and classify promotional periods using transaction data
 
 📰 3. Fake News Detection
@@ -22,14 +23,14 @@ File: Fake_News_Detection.ipynb
 Builds a logistic regression classifier to identify fake news articles based on text data.
 Techniques: TF-IDF, Logistic Regression
 Language: Python
-Libraries: scikit-learn, nltk, pandas
+Libraries: numpy, nltk, pandas, tensorflow
 
 🐦 4. Forecasting Migratory Patterns
 File: Forecast_migratory_pattern_time_series.ipynb
 Forecasts bird migration using time series models.
-Techniques: ARIMA, Prophet
+Techniques: ARIMA, SARIMA
 Language: Python
-Libraries: statsmodels, fbprophet, pandas
+Libraries: statsmodels, pmdarima, pandas
 
 🧬 5. GLM on Cancer Data
 File: GLM_cancer_data.Rmd
@@ -43,7 +44,7 @@ File: codeR_thesis.r
 Implements a statistical algorithm to analyze public attitudes and behaviors on environmental issues.
 Focus: Pattern detection in large-scale survey data
 Language: R
-Methods: Descriptive statistics, trend analysis, clustering
+Libraries: foreign, HH, tidyverse
 
 🚀 How to Run
 Python Notebooks (.ipynb): Open with Jupyter Notebook or Google Colab
